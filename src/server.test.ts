@@ -5,6 +5,8 @@ import {
   findSignatureByEpoch,
   getAllSignatures,
   insertSignature,
+  removeSignature,
+  removeSignatureByEpoch,
   Signature,
   updateSignatureByEpoch,
 } from "./signature/model";
@@ -112,7 +114,10 @@ describe.skip("PUT /signatures/:epoch", () => {
     await supertest(app)
       .put("/signatures/1614095562950")
       .send(updateProperties);
-    expect(updateSignatureByEpoch).toHaveBeenCalledWith(1614095562950, updateProperties);
+    expect(updateSignatureByEpoch).toHaveBeenCalledWith(
+      1614095562950,
+      updateProperties
+    );
   });
 
   test("when updateSignatureByEpoch returns a signature, it returns a 200 with the given epoch and full updated signature", async () => {
@@ -142,7 +147,7 @@ describe.skip("PUT /signatures/:epoch", () => {
 });
 
 describe("POST /signatures", () => {
-  const mockResponseEpochId = 123456789
+  const mockResponseEpochId = 123456789;
 
   beforeEach(() => {
     resetMockFor(
@@ -175,9 +180,9 @@ describe("POST /signatures", () => {
     expect(response.body.status).toBe("success");
     expect(response.body.data).toHaveProperty("signature");
     expect(response.body.data.signature).toStrictEqual({
-      name: 'Noddy',
-      epochId: mockResponseEpochId
-    })
+      name: "Noddy",
+      epochId: mockResponseEpochId,
+    });
   });
 
   test("when not provided with a name in the request body, it responds with a status of 400, a status of success and signature in data", async () => {
@@ -188,5 +193,47 @@ describe("POST /signatures", () => {
     expect(response.body.status).toBe("fail");
     expect(response.body.data.name).toMatch(/string value/);
     expect(response.body.data.name).toMatch(/required/);
+  });
+});
+
+describe("DELETE /signatures/:epoch", () => {
+  const passingEpochId = 1614096121305;
+  const passingSignature = {
+    epochId: passingEpochId,
+    name: "Indiana Jones",
+  };
+
+  beforeEach(() => {
+    resetMockFor(removeSignatureByEpoch, (epochId: number): boolean | null => {
+      // mock implementation:
+      // delete a signature for a specific epochId, otherwise null
+      return epochId === passingSignature.epochId ? true : null;
+    });
+  });
+
+  it("calls removeSignatureByEpoch with the given epoch", async () => {
+    await supertest(app).delete("/signatures/1614095562950");
+    expect(removeSignatureByEpoch).toHaveBeenCalledWith(1614095562950);
+  });
+
+  test("when removeSignatureByEpoch successfully deletes a signature, it returns a 200 with the given epoch", async () => {
+    const response = await supertest(app).delete(
+      `/signatures/${passingSignature.epochId}`
+    );
+    expect(removeSignatureByEpoch).toReturnWith(true);
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe("success");
+  });
+
+  test("when removeSignatureByEpoch returns null, it returns a 404 with information about not managing to find a signature", async () => {
+    // add one to delete a non-passing epochId value
+    const response = await supertest(app).delete(
+      `/signatures/${passingSignature.epochId + 1}`
+    );
+    expect(removeSignatureByEpoch).toReturnWith(null);
+    expect(response.status).toBe(404);
+    expect(response.body.status).toBe("fail");
+    expect(response.body.data).toHaveProperty("epochId");
+    expect(response.body.data.epochId).toMatch(/could not find/i);
   });
 });
